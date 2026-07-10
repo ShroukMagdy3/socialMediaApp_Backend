@@ -1,37 +1,43 @@
 # Social Media App Backend
 
-A full-featured **Social Media Application Backend** built with **Node.js, Express, TypeScript, and MongoDB**. This project provides secure authentication, user management, friendships, chats, and advanced features like **Two-Factor Authentication (2FA)**.
+A full-featured **Social Media Application Backend** built with **Node.js, Express, TypeScript, and MongoDB**. This project provides secure authentication, user management, friendships, chats, and advanced features like **Two-Factor Authentication (2FA)** and **AWS S3 cloud storage** for media uploads.
 
 ---
 
-##  Project Overview
+## Project Overview
 
 This backend powers a social media platform where users can:
 
-* Create accounts and authenticate securely
-* Manage profiles and account settings
-* Send and manage friend requests
-* Chat with friends in real time (API-ready)
-* Enable Two-Factor Authentication (2FA)
-* Administer users with role-based authorization
+- Create accounts and authenticate securely (including Google login)
+- Manage profiles and account settings
+- Upload and store profile/post images on **AWS S3**
+- Send and manage friend requests
+- Chat with friends in real time via **Socket.IO** and **GraphQL**
+- Enable Two-Factor Authentication (2FA)
+- Administer users with role-based authorization
 
 The project follows **clean architecture** principles with separation of concerns between routes, services, middleware, and database models.
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
-* **Node.js**
-* **Express.js**
-* **TypeScript**
-* **MongoDB & Mongoose**
-* **JWT Authentication (Access & Refresh Tokens)**
-* **Role-Based Authorization**
-* **Docker & Docker Compose**
+- **Node.js**
+- **Express.js**
+- **TypeScript**
+- **MongoDB & Mongoose**
+- **JWT Authentication (Access & Refresh Tokens)**
+- **Google OAuth** (`google-auth-library`)
+- **AWS S3** (`@aws-sdk/client-s3`, `@aws-sdk/lib-storage`, `@aws-sdk/s3-request-presigner`) — cloud storage for images/attachments, including multipart uploads and pre-signed URLs
+- **GraphQL** (`graphql`, `graphql-http`)
+- **Socket.IO** — real-time chat
+- **Role-Based Authorization**
+- **Zod** — schema validation
+- **Docker & Docker Compose**
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```
 socialMediaApp_BackEnd/
@@ -46,7 +52,7 @@ socialMediaApp_BackEnd/
 │   ├── authentication.ts
 │   ├── authorization.ts
 │   ├── validation.ts
-│   └── multer.cloud.ts
+│   └── multer.cloud.ts        # Multer config wired to AWS S3
 │
 │── modules/
 │   ├── users/
@@ -67,7 +73,8 @@ socialMediaApp_BackEnd/
 │       └── chat.controller.ts
 │
 │── utilities/
-│   └── token.ts
+│   ├── token.ts
+│   └── s3.service.ts          # AWS S3 upload/download helpers
 │
 │── app.ts
 │── server.ts
@@ -78,17 +85,39 @@ socialMediaApp_BackEnd/
 │── docker-compose.yml
 ```
 
-##  Authentication & Security
+---
 
-* **JWT-based Authentication** (Access & Refresh tokens)
-* **Email confirmation flow**
-* **Password reset & forget password**
-* **Two-Factor Authentication (2FA)**
-* **Role-based access control** (User, Admin, Super Admin)
+## Authentication & Security
+
+- **JWT-based Authentication** (Access & Refresh tokens)
+- **Google OAuth login**
+- **Email confirmation flow**
+- **Password reset & forget password**
+- **Two-Factor Authentication (2FA)**
+- **Role-based access control** (User, Admin, Super Admin)
 
 ---
 
-##  User Routes Documentation
+## Cloud Storage (AWS S3)
+
+Media uploads (profile pictures, post images, chat attachments) are stored on **AWS S3** instead of the local disk, using:
+
+- `@aws-sdk/client-s3` — core S3 client for uploading/deleting objects
+- `@aws-sdk/lib-storage` — multipart upload support for large files
+- `@aws-sdk/s3-request-presigner` — generates pre-signed URLs for secure, temporary access to private files
+
+Required AWS environment variables:
+
+```
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=your_region
+AWS_BUCKET_NAME=your_bucket_name
+```
+
+---
+
+## User Routes Documentation
 
 Base Route:
 
@@ -96,7 +125,7 @@ Base Route:
 /api/users
 ```
 
-###  Authentication
+### Authentication
 
 | Method | Endpoint          | Description               |
 | ------ | ----------------- | ------------------------- |
@@ -109,67 +138,67 @@ Base Route:
 
 ---
 
-###  Profile & Account
+### Profile & Account
 
-| Method | Endpoint       | Description                |
-| ------ | -------------- | -------------------------- |
-| GET    | `/getProfile`  | Get logged-in user profile |
-| PUT    | `/updateInfo`  | Update user profile info   |
-| PATCH  | `/updatePass`  | Update password            |
-| PATCH  | `/updateEmail` | Update email               |
-| POST   | `/upload`      | Upload profile image       |
+| Method | Endpoint       | Description                            |
+| ------ | -------------- | --------------------------------------- |
+| GET    | `/getProfile`  | Get logged-in user profile              |
+| PUT    | `/updateInfo`  | Update user profile info                |
+| PATCH  | `/updatePass`  | Update password                         |
+| PATCH  | `/updateEmail` | Update email                            |
+| POST   | `/upload`      | Upload profile image (stored on AWS S3) |
 
 ---
 
-###  Account Control
+### Account Control
 
 | Method | Endpoint                   | Description              |
-| ------ | -------------------------- | ------------------------ |
-| PATCH  | `/forgetPass`              | Request password reset   |
-| PATCH  | `/resetPass`               | Reset password           |
-| DELETE | `/freezeAccount/:userId`   | Freeze account           |
-| DELETE | `/unFreezeAccount/:userId` | Unfreeze account (Admin) |
+| ------ | --------------------------- | ------------------------ |
+| PATCH  | `/forgetPass`               | Request password reset   |
+| PATCH  | `/resetPass`                | Reset password            |
+| DELETE | `/freezeAccount/:userId`    | Freeze account            |
+| DELETE | `/unFreezeAccount/:userId`  | Unfreeze account (Admin)  |
 
 ---
 
-###  Friends & Requests
+### Friends & Requests
 
 | Method | Endpoint                     | Description           |
-| ------ | ---------------------------- | --------------------- |
-| POST   | `/sendRequest/:userId`       | Send friend request   |
-| PATCH  | `/acceptRequest/:requestId`  | Accept friend request |
-| DELETE | `/friend-request/:requestId` | Cancel friend request |
-| DELETE | `/unfriend/:friendId`        | Remove friend         |
+| ------ | ----------------------------- | ---------------------- |
+| POST   | `/sendRequest/:userId`        | Send friend request    |
+| PATCH  | `/acceptRequest/:requestId`   | Accept friend request  |
+| DELETE | `/friend-request/:requestId`  | Cancel friend request  |
+| DELETE | `/unfriend/:friendId`         | Remove friend          |
 
 ---
 
-###  Block System
+### Block System
 
 | Method | Endpoint                  | Description  |
-| ------ | ------------------------- | ------------ |
-| PATCH  | `/block/:blockedUserId`   | Block user   |
-| PATCH  | `/unblock/:blockedUserId` | Unblock user |
+| ------ | -------------------------- | ------------ |
+| PATCH  | `/block/:blockedUserId`    | Block user   |
+| PATCH  | `/unblock/:blockedUserId`  | Unblock user |
 
 ---
 
-###  Admin Dashboard
+### Admin Dashboard
 
 | Method | Endpoint              | Description          |
-| ------ | --------------------- | -------------------- |
-| GET    | `/dasBoard`           | View admin dashboard |
-| PATCH  | `/updateRole/:userId` | Update user role     |
+| ------ | ---------------------- | --------------------- |
+| GET    | `/dasBoard`            | View admin dashboard  |
+| PATCH  | `/updateRole/:userId`  | Update user role      |
 
 Roles allowed: `Admin`, `SuperAdmin`
 
 ---
 
-###  Two-Factor Authentication (2FA)
+### Two-Factor Authentication (2FA)
 
-| Method | Endpoint            | Description            |
-| ------ | ------------------- | ---------------------- |
-| POST   | `/enable-2fa`       | Enable 2FA             |
-| POST   | `/confirmEnable2FA` | Confirm 2FA setup      |
-| POST   | `/confirmLogin`     | Confirm login with 2FA |
+| Method | Endpoint             | Description             |
+| ------ | --------------------- | ------------------------ |
+| POST   | `/enable-2fa`         | Enable 2FA               |
+| POST   | `/confirmEnable2FA`   | Confirm 2FA setup        |
+| POST   | `/confirmLogin`       | Confirm login with 2FA   |
 
 ---
 
@@ -181,11 +210,13 @@ Base Route:
 /api/users/:userId/chat
 ```
 
-| Method | Endpoint          | Description                                 |
-| ------ | ----------------- | ------------------------------------------- |
-| GET    | `/`               | Get private chat with user                  |
-| POST   | `/createGroup`    | Create a group chat (with image attachment) |
-| GET    | `/group/:groupId` | Get group chat details                      |
+| Method | Endpoint            | Description                                          |
+| ------ | -------------------- | ----------------------------------------------------- |
+| GET    | `/`                  | Get private chat with user                             |
+| POST   | `/createGroup`       | Create a group chat (with image attachment on S3)      |
+| GET    | `/group/:groupId`    | Get group chat details                                 |
+
+Real-time messaging is powered by **Socket.IO**.
 
 ---
 
@@ -197,16 +228,16 @@ Base Route:
 /api/posts
 ```
 
-| Method | Endpoint                | Description                     |
-| ------ | ----------------------- | ------------------------------- |
-| POST   | `/createPost`           | Create a new post (with images) |
-| PATCH  | `/react/:postId`        | Like or unlike a post           |
-| PATCH  | `/update/:postId`       | Update a post                   |
-| GET    | `/getAllPosts`          | Get all posts                   |
-| GET    | `/getPost/:postId`      | Get single post                 |
-| PUT    | `/freezePost/:postId`   | Freeze a post                   |
-| PUT    | `/unfreezePost/:postId` | Unfreeze a post                 |
-| DELETE | `/delete/:postId`       | Delete a post                   |
+| Method | Endpoint                 | Description                                |
+| ------ | ------------------------- | -------------------------------------------- |
+| POST   | `/createPost`             | Create a new post (images uploaded to S3)    |
+| PATCH  | `/react/:postId`          | Like or unlike a post                        |
+| PATCH  | `/update/:postId`         | Update a post                                |
+| GET    | `/getAllPosts`            | Get all posts                                |
+| GET    | `/getPost/:postId`        | Get single post                              |
+| PUT    | `/freezePost/:postId`     | Freeze a post                                |
+| PUT    | `/unfreezePost/:postId`   | Unfreeze a post                              |
+| DELETE | `/delete/:postId`         | Delete a post                                |
 
 ---
 
@@ -218,56 +249,63 @@ Base Route:
 /api/posts/:postId/comment
 ```
 
-| Method | Endpoint                 | Description                         |
-| ------ | ------------------------ | ----------------------------------- |
-| POST   | `/`                      | Create a comment (with attachments) |
-| GET    | `/getComment/:commentId` | Get a comment                       |
-| PUT    | `/update/:commentId`     | Update a comment                    |
-| DELETE | `/delete/:commentId`     | Delete a comment                    |
+| Method | Endpoint                  | Description                          |
+| ------ | -------------------------- | ------------------------------------- |
+| POST   | `/`                        | Create a comment (with attachments)   |
+| GET    | `/getComment/:commentId`   | Get a comment                         |
+| PUT    | `/update/:commentId`       | Update a comment                      |
+| DELETE | `/delete/:commentId`       | Delete a comment                      |
 
 ---
 
-##  Running the Project
+## Running the Project
 
 ### Install dependencies
 
-```bash
+```
 npm install
 ```
 
 ### Environment variables
 
-Create `.env` file:
+Create a `.env` file:
 
-```env
+```
 PORT=5000
 MONGO_URI=your_mongodb_uri
 JWT_SECRET=your_secret
 REFRESH_TOKEN_SECRET=your_refresh_secret
+
+# AWS S3
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=your_region
+AWS_BUCKET_NAME=your_bucket_name
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
 ### Run in development
 
-```bash
+```
 npm run dev
 ```
 
 ### Run with Docker
 
-```bash
+```
 docker-compose up --build
 ```
 
 ---
 
-##  License
+## License
 
 This project is licensed under the **MIT License**.
 
 ---
 
-##  Author
+## Author
 
 **Shrouk Magdy**
-
----
